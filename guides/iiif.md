@@ -161,9 +161,114 @@ forward "/iiif/3", Image.Plug,
 
 …and `<.image provider={:iiif} host="">` resolves through your in-process server using the same URL grammar real IIIF servers use. The mount also serves `info.json` discovery documents at `/iiif/3/<identifier>/info.json` automatically. See [`image_plug`'s IIIF conformance guide](https://hexdocs.pm/image_plug/iiif_conformance.html) for the per-segment compliance matrix and the deployment recipe.
 
+## The IIIF-specific component: `<.iiif>`
+
+`<.image provider={:iiif}>` covers the static-thumbnail case. `Image.Components.IIIF.iiif/1` is a dedicated IIIF component that adds two IIIF fundamentals nothing else exposes: tiled rendering and deep-zoom viewer mounting.
+
+```elixir
+import Image.Components.IIIF
+```
+
+It has three modes selected by the `mode=` attribute.
+
+### `mode={:static}` — the default
+
+Equivalent to `<.image provider={:iiif} src="…">`. Lives here for symmetry; if all you need is a thumbnail, the cross-provider `<.image>` is the simpler call.
+
+```heex
+<.iiif src="/cat.jpg" host="https://iiif.example.org" width={400} />
+```
+
+### `mode={:tiles}` — static tile grid
+
+Computes the IIIF tile URLs that cover the source image at a chosen scale factor and emits a CSS-grid container of `<img>` elements. No JavaScript. Useful for high-resolution static layouts (atlases, scanned manuscripts, posters) where each tile is just one more cacheable HTTP request.
+
+```heex
+<.iiif
+  src="/atlas.jpg"
+  host="https://iiif.example.org"
+  mode={:tiles}
+  source_width={4096}
+  source_height={4096}
+  tile_width={512}
+  scale_factor={2}
+/>
+```
+
+Renders a 4×4 grid (16 tiles) where each tile covers `512 * 2 = 1024` source pixels rendered at 512 — i.e. a 2048×2048 zoomed-out view of the 4096×4096 original. Each `<img>` is a separate HTTP request to a URL like `…/0,0,1024,1024/512,512/0/default.jpg`, so the browser can parallelise the fetches and the CDN can cache each tile independently.
+
+The component does not auto-discover the source dimensions — you supply them as `source_width=` and `source_height=`. Use `Image.Components.URL.iiif_info_url/1` to build the `info.json` URL, fetch it (e.g. in `mount/3`), and pass the resulting `width` / `height` values down. The discovery step is deliberately out of scope for the component to keep it pure render-time logic.
+
+The bottom and right edges of the grid clip to the remaining source pixels — a 1500×1024 source with `tile_width={512}` produces a 3×2 grid where the rightmost column's `<img>` tiles are 476px wide instead of 512.
+
+### `mode={:viewer}` — deep-zoom viewer mount
+
+For real interactive deep-zoom (pan, pinch-zoom, full-resolution streaming) you need a JavaScript viewer — [OpenSeadragon](https://openseadragon.github.io), [Mirador](https://projectmirador.org), or [Leaflet-IIIF](https://github.com/mejackreed/Leaflet-IIIF) are the canonical choices. This mode emits the markup those viewers consume.
+
+```heex
+<.iiif
+  src="/portrait.jpg"
+  host="https://iiif.example.org"
+  mode={:viewer}
+  width={1200}
+  height={900}
+  viewer={:openseadragon}
+  id="viewer-portrait"
+  phx-hook="OpenSeadragon"
+/>
+```
+
+Renders:
+
+```html
+<div
+  data-iiif-info-url="https://iiif.example.org/iiif/3/portrait.jpg/info.json"
+  data-iiif-viewer="openseadragon"
+  style="width:1200px;height:900px;"
+  id="viewer-portrait"
+  phx-hook="OpenSeadragon"
+>
+  <img src="https://iiif.example.org/iiif/3/portrait.jpg/full/800,/0/default.jpg"
+       style="width:100%;height:100%;object-fit:contain;" />
+</div>
+```
+
+The fallback `<img>` is what the user sees while the JS loads (or permanently if JS is off / fails). The JS hook reads `data-iiif-info-url`, fetches `info.json`, and replaces the `<img>` with a tile-rendering canvas.
+
+A minimal `OpenSeadragon` LiveView hook on the JS side:
+
+```javascript
+const Hooks = {
+  OpenSeadragon: {
+    mounted() {
+      const tileSources = this.el.dataset.iiifInfoUrl
+      this.viewer = OpenSeadragon({ element: this.el, tileSources, prefixUrl: "/openseadragon/" })
+    },
+    destroyed() { this.viewer && this.viewer.destroy() }
+  }
+}
+```
+
+The component does not bundle the viewer JS — that's your application's choice. Each viewer has its own license, footprint, and API; baking one in would force a decision that doesn't apply to every consumer.
+
+## info.json discovery
+
+Use `Image.Components.URL.iiif_info_url/1` when you need the URL of the `info.json` document — e.g. for a `<link rel="alternate">` in your page head, for a JS viewer config, or for fetching the document server-side to discover source dimensions:
+
+```elixir
+alias Image.Components.URL
+
+URL.iiif_info_url(source_path: "/cat.jpg", host: "https://iiif.example.org")
+# => "https://iiif.example.org/iiif/3/cat.jpg/info.json"
+```
+
+Same identifier-encoding rules as the regular IIIF builder: leading `/` stripped, embedded `/` percent-encoded.
+
 ## Related
 
-* `Image.Components.URL.iiif/2` — module docs for the URL builder.
+* `Image.Components.URL.iiif/2` — the URL builder.
+* `Image.Components.URL.iiif_info_url/1` — info.json URL builder.
+* `Image.Components.IIIF.iiif/1` — the dedicated component (`:static` / `:tiles` / `:viewer`).
 * [IIIF Image API 3.0 specification](https://iiif.io/api/image/3.0/) — the source of truth.
 * [IIIF Cookbook](https://iiif.io/api/cookbook/) — recipes and reference URLs.
 * [`environments.md`](environments.md) — how to wire `host=` and `iiif_prefix=` per environment via `Application` config.

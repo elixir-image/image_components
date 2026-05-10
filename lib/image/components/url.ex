@@ -332,6 +332,51 @@ defmodule Image.Components.URL do
     maybe_sign(url, options, :iiif)
   end
 
+  @doc """
+  Builds the URL of an IIIF identifier's [`info.json` discovery
+  document](https://iiif.io/api/image/3.0/#5-image-information).
+
+  This is the entry point a deep-zoom viewer (OpenSeadragon, Mirador,
+  Leaflet-IIIF) reads to discover the source dimensions, available
+  tile sizes, supported features, and rendering profile. It is also
+  the canonical IIIF identity URL — the same URL appears as `id` in
+  the `info.json` body.
+
+  ### Arguments
+
+  * `options` is a keyword list — see the Options section.
+
+  ### Options
+
+  * `:source_path` is the URL-relative source path used as the IIIF
+    identifier. Default `\"/sample.jpg\"`.
+
+  * `:host` is prepended verbatim. Default `\"\"`.
+
+  * `:iiif_prefix` is the server's IIIF version prefix. Default
+    `\"/iiif/3\"`.
+
+  ### Returns
+
+  * The URL of the `info.json` document as a string.
+
+  ### Examples
+
+      iex> Image.Components.URL.iiif_info_url(source_path: "/cat.jpg", host: "https://iiif.example.org")
+      "https://iiif.example.org/iiif/3/cat.jpg/info.json"
+
+      iex> Image.Components.URL.iiif_info_url(source_path: "/sub/cat.jpg")
+      "/iiif/3/sub%2Fcat.jpg/info.json"
+
+  """
+  @spec iiif_info_url(options()) :: String.t()
+  def iiif_info_url(options \\ []) do
+    identifier = source_path(options) |> trim_leading_slash() |> iiif_encode_identifier()
+    host = Keyword.get(options, :host, "")
+    prefix = Keyword.get(options, :iiif_prefix, "/iiif/3")
+    "#{host}#{prefix}/#{identifier}/info.json"
+  end
+
   # ─── shared helpers ──────────────────────────────────────────────
 
   defp source_path(options), do: Keyword.get(options, :source_path, "/sample.jpg")
