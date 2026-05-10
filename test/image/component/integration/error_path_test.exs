@@ -13,6 +13,8 @@ defmodule Image.Component.Integration.ErrorPathTest do
     source_resolver: {Image.Plug.SourceResolver.File, root: @fixtures},
     on_error: :status_text
 
+  import ExUnit.CaptureLog
+
   test "URL pointing at a missing source returns 404 :source_not_found", ctx do
     html =
       render_component(&Image.Component.image/1, %{
@@ -27,7 +29,8 @@ defmodule Image.Component.Integration.ErrorPathTest do
       })
 
     [src] = image_srcs(html)
-    {:ok, response} = Req.get(src, decode_body: false)
+
+    {{:ok, response}, _log} = with_log(fn -> Req.get(src, decode_body: false) end)
 
     assert response.status == 404
     assert response.headers["x-image-plug-error"] == ["source_not_found"]

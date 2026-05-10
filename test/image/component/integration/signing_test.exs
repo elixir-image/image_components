@@ -11,6 +11,7 @@ defmodule Image.Component.Integration.SigningTest do
 
   use ExUnit.Case, async: false
   import Phoenix.LiveViewTest
+  import ExUnit.CaptureLog
   import Image.Component.IntegrationCase, only: [parse_srcset: 1]
 
   setup_all do
@@ -78,7 +79,7 @@ defmodule Image.Component.Integration.SigningTest do
       })
 
     [{url, _}] = parse_srcset(html) |> Enum.take(1)
-    {:ok, response} = Req.get(url, decode_body: false)
+    {{:ok, response}, _log} = with_log(fn -> Req.get(url, decode_body: false) end)
 
     assert response.status == 401
     assert response.headers["x-image-plug-error"] == ["signature_required"]
