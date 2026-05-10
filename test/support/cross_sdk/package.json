@@ -1,0 +1,15 @@
+{
+  "name": "image_components_cross_sdk",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Wraps the official Cloudinary, imgix, and ImageKit URL-builder SDKs so the Elixir test suite can compare their output against image_components.",
+  "type": "module",
+  "scripts": {
+    "build-url": "node bin/build-url.js"
+  },
+  "dependencies": {
+    "@imgix/js-core": "^3.8.0",
+    "cloudinary": "^2.5.0",
+    "imagekit-javascript": "^4.0.0"
+  }
+}

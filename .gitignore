@@ -22,3 +22,7 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 image_components-*.tar
 
+
+# Node modules used by the cross-SDK validation suite
+test/support/cross_sdk/node_modules/
+
